@@ -16,11 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 import sys
 import uinput
 import time
 from collections import defaultdict
+#import struct
 
 # Shanwan Twin USB hidraw driver.
 
@@ -81,71 +81,70 @@ class TwinUSB:
         # be emitted once then the event state for the button will be reset
         # to 0.
 
-        self.buf = self.file.read(32)
+        self.buf = self.file.read(8)
         if self.buf != self.oldBuf:
             self.oldBuf = self.buf
             # Interpret the events
             self.interpretEvents(self.buf[0])
 
 
-    def interpretEvents(self, firstID):
+    def interpretEvents(self, dev):
         """Interpret the raw controller input data and update the event state"""
         # FirstID is the joystick id that is in the first byte of the
         # buffer, either 1 or 2. If it's anything else then something
         # went wrong.
-        if firstID in self.gamepadIds:
-            for dev in self.gamepadIds:
-                # 6th byte is shape buttons
-                btn = self.buf[((firstID - 1) * 8) + (dev * 8) + 5]
-                # Buttons 1 to 4:
-                self.eventState[dev][0] = -1 if self.eventState[dev][0] and not btn & 16 else btn & 16
-                self.eventState[dev][1] = -1 if self.eventState[dev][1] and not btn & 32 else btn & 32
-                self.eventState[dev][2] = -1 if self.eventState[dev][2] and not btn & 64 else btn & 64
-                self.eventState[dev][3] = -1 if self.eventState[dev][3] and not btn & 128 else btn & 128
+        if dev in self.gamepadIds:
+            btn = self.buf[5]
+            # Buttons 1 to 4:
+            self.eventState[dev][0] = -1 if self.eventState[dev][0] and not btn & 16 else btn & 16
+            self.eventState[dev][1] = -1 if self.eventState[dev][1] and not btn & 32 else btn & 32
+            self.eventState[dev][2] = -1 if self.eventState[dev][2] and not btn & 64 else btn & 64
+            self.eventState[dev][3] = -1 if self.eventState[dev][3] and not btn & 128 else btn & 128
 
-                # Buttons 5 to 12:
-                btn = self.buf[((firstID - 1) * 8) + (dev * 8) + 6]
-                self.eventState[dev][4] = -1 if self.eventState[dev][4] and not btn & 1 else btn & 1
-                self.eventState[dev][5] = -1 if self.eventState[dev][5] and not btn & 2 else btn & 2
-                self.eventState[dev][6] = -1 if self.eventState[dev][6] and not btn & 4 else btn & 4
-                self.eventState[dev][7] = -1 if self.eventState[dev][7] and not btn & 5 else btn & 8
-                self.eventState[dev][8] = -1 if self.eventState[dev][8] and not btn & 16 else btn & 16
-                self.eventState[dev][9] = -1 if self.eventState[dev][9] and not btn & 32 else btn & 32
-                self.eventState[dev][10] = -1 if self.eventState[dev][10] and not btn & 64 else btn & 64
-                self.eventState[dev][11] = -1 if self.eventState[dev][11] and not btn & 128 else btn & 128
+            # Buttons 5 to 12:
+            btn = self.buf[6]
+            self.eventState[dev][4] = -1 if self.eventState[dev][4] and not btn & 1 else btn & 1
+            self.eventState[dev][5] = -1 if self.eventState[dev][5] and not btn & 2 else btn & 2
+            self.eventState[dev][6] = -1 if self.eventState[dev][6] and not btn & 4 else btn & 4
+            self.eventState[dev][7] = -1 if self.eventState[dev][7] and not btn & 8 else btn & 8
+            self.eventState[dev][8] = -1 if self.eventState[dev][8] and not btn & 16 else btn & 16
+            self.eventState[dev][9] = -1 if self.eventState[dev][9] and not btn & 32 else btn & 32
+            self.eventState[dev][10] = -1 if self.eventState[dev][10] and not btn & 64 else btn & 64
+            self.eventState[dev][11] = -1 if self.eventState[dev][11] and not btn & 128 else btn & 128
 
-                # Left stick (eventstate 14-15) (byte 3 = x 4 = y))
-                axisX = self.buf[((firstID - 1) * 8) + (dev * 8) + 3]
-                axisY = self.buf[((firstID - 1) * 8) + (dev * 8) + 4]
-                self.eventState[dev][12] = ord(axisX)
-                self.eventState[dev][13] = ord(axisY)
+            # Left stick (eventstate 14-15) (byte 3 = x 4 = y))
+            axisX = self.buf[3]
+            axisY = self.buf[4]
+            self.eventState[dev][12] = axisX
+            self.eventState[dev][13] = axisY
 
-                # Right stick (eventstate 12-13) (byte 1 = x 2 = y))
-                axisX = self.buf[((firstID - 1) * 8) + (dev * 8) + 1]
-                axisY = self.buf[((firstID - 1) * 8) + (dev * 8) + 2]
-                self.eventState[dev][14] = ord(axisX)
-                self.eventState[dev][15] = ord(axisY)
+            # Right stick (eventstate 12-13) (byte 1 = x 2 = y))
+            axisX = self.buf[1]
+            axisY = self.buf[2]
+            self.eventState[dev][14] = axisX
+            self.eventState[dev][15] = axisY
 
-                # D-pad (first 4 bits of byte 5 is the hat direction.
-                # value is 0 to 7 for the 8 directions starting from
-                # the top and going clockwise. Neutral position = 15.)
-                # these must be converted into -1, 0, 1 event values for
-                # the x and y hat axes.
+            # D-pad (first 4 bits of byte 5 is the hat direction.
+            # value is 0 to 7 for the 8 directions starting from
+            # the top and going clockwise. Neutral position = 15.)
+            # these must be converted into -1, 0, 1 event values for
+            # the x and y hat axes.
 
-                # Mask off the last 4 bits
-                self.hatDir[dev] = self.buf[((firstID - 1) * 8) + (dev * 8) + 5] & 0xf
-                if self.hatDir[dev] == 15:
-                    self.eventState[dev][16] = 0
-                    self.eventState[dev][17] = 0
-                else:
-                    self.eventState[dev][16] = self.hatDirs[self.hatDir[dev]][0]
-                    self.eventState[dev][17] = self.hatDirs[self.hatDir[dev]][1]
+            # Mask off the last 4 bits
+            self.hatDir[dev] = self.buf[5] & 0xf
+            if self.hatDir[dev] == 15:
+                self.eventState[dev][16] = 0
+                self.eventState[dev][17] = 0
+            else:
+                self.eventState[dev][16] = self.hatDirs[self.hatDir[dev]][0]
+                self.eventState[dev][17] = self.hatDirs[self.hatDir[dev]][1]
         else:
-            self.gamepadIds.append(firstID)
-            self.devices[firstID] =(uinput.Device(self.events, "ShanWan Gamepad "+str(firstID)))
-            self.eventState[firstID] = ([0, 0, 0, 0, 0, 0, 0 ,0 ,0 ,0 ,0 ,0, 127, 127, 127, 127, 0, 0])
-            self.hatDir[firstID] = 15
-            print ("ShanWan controller with ID "+str(firstID)+" added!")
+            self.gamepadIds.append(dev)
+            # BusType=3 --> USB
+            self.devices[dev] =uinput.Device(self.events, name="usb gamepad           ", vendor=0x0810, product=0xe501, bustype=3, version=0x0110)
+            self.eventState[dev] = ([0, 0, 0, 0, 0, 0, 0 ,0 ,0 ,0 ,0 ,0, 127, 127, 127, 127, 0, 0])
+            self.hatDir[dev] = 15
+            print ("ShanWan controller with ID "+str(dev)+" added!")
 
     def emitEvents(self):
         """Emit input events based on the current event state"""
