@@ -1,6 +1,6 @@
-#### To install on Arch based distros download the PKGBUILD and run `makepkg -si`.
+#### Repository for shanwan-gamepad packageate MaxxedSUSE repository`.
 
-For further information consult https://wiki.archlinux.org/title/Makepkg#Usage
+https://build.opensuse.org/package/show/home:MaxxedSUSE/shanwan-gamepad
 
 
 
